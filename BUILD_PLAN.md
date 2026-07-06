@@ -27,9 +27,8 @@ ends mid-phase, leave a one-line note under the phase about what's left.
 - [x] Apply `0001_init.sql`: `supabase db push`
 - [x] Regenerate real types: `supabase gen types typescript --linked > src/types/database.ts`
 - [x] Fill in `.env.local` with the project's URL + anon/publishable key
-- [ ] Add `SUPABASE_SERVICE_ROLE_KEY` to `.env.local` (Project Settings → API →
-  service_role secret) — required before building any ingestion connector,
-  since `src/lib/supabase/admin.ts` needs it
+- [x] Add `SUPABASE_SERVICE_ROLE_KEY` to `.env.local` (verified with a smoke
+  query against `sources` via `src/lib/supabase/admin.ts`'s client)
 - [x] Decide the auth model for dashboard users: **Supabase Auth, email/magic-link**,
   single class of authenticated users (no org/multi-tenant scoping for now).
   The existing `using (true) to authenticated` RLS policies match this —
