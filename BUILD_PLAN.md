@@ -18,12 +18,18 @@ ends mid-phase, leave a one-line note under the phase about what's left.
 
 ## Phase 1 — Supabase project setup
 
-- [ ] Create (or connect to) a real Supabase project
-- [ ] `npx supabase login` / `npx supabase link --project-ref <ref>`
-- [ ] Apply `0001_init.sql`: `npx supabase db push`
-- [ ] Regenerate real types: `npx supabase gen types typescript --linked > src/types/database.ts`
-  (replaces the hand-authored stub — diff it against the current file before overwriting)
-- [ ] Fill in `.env.local` from `.env.example` with the project's URL/anon/service-role keys
+- [x] Create (or connect to) a real Supabase project (`oviqrzgxbipjeonpzqyb`)
+- [x] `supabase login` / `supabase link --project-ref oviqrzgxbipjeonpzqyb`
+  (note: `supabase login`'s browser flow and any Keychain-touching command
+  hang in a non-TTY sandboxed shell — use `--token <personal-access-token>`
+  instead; for `db push`/`gen types` in that environment, use `--db-url` with
+  the DB password to bypass Keychain, run with a manual background timeout)
+- [x] Apply `0001_init.sql`: `supabase db push`
+- [x] Regenerate real types: `supabase gen types typescript --linked > src/types/database.ts`
+- [x] Fill in `.env.local` with the project's URL + anon/publishable key
+- [ ] Add `SUPABASE_SERVICE_ROLE_KEY` to `.env.local` (Project Settings → API →
+  service_role secret) — required before building any ingestion connector,
+  since `src/lib/supabase/admin.ts` needs it
 - [ ] Decide the auth model for dashboard users (Supabase Auth email/magic-link vs.
   SSO) and add a `profiles`/`org_members` table + RLS scoping if multi-tenant —
   the current RLS policies are permissive placeholders (`using (true)`)
