@@ -30,9 +30,11 @@ ends mid-phase, leave a one-line note under the phase about what's left.
 - [ ] Add `SUPABASE_SERVICE_ROLE_KEY` to `.env.local` (Project Settings → API →
   service_role secret) — required before building any ingestion connector,
   since `src/lib/supabase/admin.ts` needs it
-- [ ] Decide the auth model for dashboard users (Supabase Auth email/magic-link vs.
-  SSO) and add a `profiles`/`org_members` table + RLS scoping if multi-tenant —
-  the current RLS policies are permissive placeholders (`using (true)`)
+- [x] Decide the auth model for dashboard users: **Supabase Auth, email/magic-link**,
+  single class of authenticated users (no org/multi-tenant scoping for now).
+  The existing `using (true) to authenticated` RLS policies match this —
+  any signed-in user gets full read access. Revisit with an `org_members`
+  table + scoped policies if this becomes multi-tenant.
 
 ## Phase 2 — Ingestion connectors
 
