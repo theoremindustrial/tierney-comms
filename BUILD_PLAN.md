@@ -42,23 +42,60 @@ provider and writes them into `messages` (+ upserts into `sources`, `contacts`,
 `contact_identities`, `threads`, `thread_participants`). Build one connector at
 a time; each is its own session.
 
-### 2a. Shared ingestion scaffolding
+### 2a. Shared ingestion scaffolding (done)
 
-- [ ] `src/lib/ingestion/types.ts` — shared `RawMessage` shape connectors normalize into
-- [ ] `src/lib/ingestion/upsert.ts` — shared helpers: find-or-create contact by
+- [x] `src/lib/ingestion/types.ts` — shared `RawMessage` shape connectors normalize into
+- [x] `src/lib/ingestion/upsert.ts` — shared helpers: find-or-create contact by
   identity, find-or-create thread by (source_id, external_thread_id), insert
-  message idempotently on (source_id, external_message_id)
-- [ ] Route handler convention for connectors: `src/app/api/ingest/[provider]/route.ts`
-- [ ] Decide sync trigger model (cron via external scheduler hitting a route
-  handler, Supabase scheduled function, or Vercel Cron) and document it here
+  message idempotently on (source_id, external_message_id). Thread rollups
+  (`message_count`/`last_message_at`/`started_at`) are bumped atomically via
+  the `bump_thread_stats` SQL function (`0002_ingestion.sql`) to avoid a
+  read-modify-write race across overlapping syncs.
+- [x] Route handler convention for connectors: `src/app/api/ingest/[provider]/route.ts`
+  — GET/POST, provider-agnostic. With no `sourceId` query param it syncs every
+  `active` source for that provider (what cron hits); pass `?sourceId=` to
+  target one connection manually. Auth is a shared secret, not a dashboard
+  session (see below) — connector-specific routes (e.g. Gmail's OAuth
+  start/callback) live under `src/app/api/ingest/<provider>/...` instead.
+- [x] Sync trigger model: **Vercel Cron** (`vercel.json`), hitting
+  `/api/ingest/gmail` every 15 min. The route checks `Authorization: Bearer
+  $CRON_SECRET` (the header Vercel Cron sends automatically for a
+  same-named env var) or a `?secret=` query param for manual/curl triggers.
+  Revisit if this app ends up deployed somewhere other than Vercel.
+- [x] Credential storage: refresh tokens go in the new `connector_credentials`
+  table (`0002_ingestion.sql`), **not** `sources.config`. `sources.config` is
+  readable by every authenticated dashboard user (Phase 1's RLS policy grants
+  full read to any signed-in user), which is fine for non-secret settings but
+  not for a refresh token — that's standing access to the provider account
+  itself, a bigger blast radius than read-only dashboard access.
+  `connector_credentials` has RLS enabled with no policies, so only the
+  service_role key (used by connectors) can touch it.
 
-### 2b. Gmail connector
+### 2b. Gmail connector (done)
 
-- [ ] OAuth flow (Google Cloud project, `googleapis` client, token storage —
-  store refresh tokens in `sources.config` or a dedicated secure table, not in git)
-- [ ] Fetch + parse messages into `RawMessage`, map Gmail thread id → `threads.external_thread_id`
-- [ ] Backfill (initial N days) + incremental sync (since `sources.last_synced_at`)
-- [ ] Update `sources.last_synced_at` / `sources.last_error` on each run
+- [x] OAuth flow: `src/lib/google/oauth.ts` (auth URL, code exchange, token
+  refresh + persistence via the `tokens` event on the OAuth2 client),
+  `src/app/api/ingest/gmail/oauth/{start,callback}/route.ts`. Scope is
+  `gmail.readonly` — this dashboard only reads mail, never sends. The start
+  route requires a signed-in Supabase Auth session (redirects to `/login`,
+  which doesn't exist until Phase 4 — sign a user in directly via Supabase
+  Auth to exercise this route until then).
+- [x] Fetch + parse: `src/lib/ingestion/gmail.ts` maps Gmail's `threadId` →
+  `threads.external_thread_id`, extracts text/html bodies from (possibly
+  nested) MIME parts, and parses From/To/Cc/Bcc into `RawParticipant`s with a
+  small regex address-list parser (not full RFC 5322, but covers what Gmail
+  actually sends).
+- [x] Backfill (last 30 days on first sync) + incremental sync (Gmail search
+  `after:<unix-seconds>` against `sources.last_synced_at`), via
+  `gmail.users.messages.list` + `.get` (concurrency-limited to 5 in-flight
+  fetches — there's no bulk `messages.get`; revisit with the raw batch HTTP
+  endpoint if backfill volume gets large).
+- [x] `sources.last_synced_at` / `sources.last_error` are updated by the
+  generic `/api/ingest/[provider]` route after each connector run, not by
+  the connector itself.
+- [ ] Manual end-to-end test: needs a Google Cloud OAuth client (Client
+  ID/Secret in `.env.local`) and a signed-in dashboard user, neither of
+  which exist yet in this project. Untested against a live Gmail account.
 
 ### 2c. Slack connector
 
